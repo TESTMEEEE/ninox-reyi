@@ -207,3 +207,46 @@ OWLVM's preprocessor works similarly to many C compilers and uses the prefix "%"
 
 		[prn arg]
 		Print an integer
+
+// TODO //
+		[ext code]
+		Exit with code
+
+		[cmpxchg dst, expected, new]
+		Atomic compare-and-exchange
+		if (*dst == expected) {
+			*dst = new;
+			ZF = 1;
+		} else {
+			ZF = 0;
+		}
+
+		[xchg arg0, arg1]
+		Atomic Exchange
+
+		# maybe [xadd dst, src]
+		Atomic add
+
+		[yeild]
+		Save the current context.
+		Switch to the next runnable task.
+
+		[spawn label]
+		Creates a new stack
+		New Register set
+		Starts execution at label
+
+		[send task, value]
+
+		[recv dst]
+
+		[join task]
+
+		[wait addr]
+
+		[signal addr]
+
+
+		
+
+
