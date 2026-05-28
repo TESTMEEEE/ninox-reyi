@@ -24,6 +24,8 @@ owl_fsize(FILE* f);
 
 #define TABLE_SIZE 4096
 
+#define TABLE_LOAD_FACTOR 0.7
+
 typedef struct owl_table_node
 {
     char*                  key;
