@@ -72,6 +72,8 @@ owl_comptime(char** src, int* src_len, owl_table_ctx_t* defines);
 
 #define MIN_MEMORY_SIZE (64 * 1024 * 1024) /* 64 MB */
 
+#define NUM_REGISTERS 17
+
 union owl_reg_u
 {
     int32_t  i32;
@@ -325,6 +327,9 @@ owl_step(owl_ctx_t* vm, int* instruction_index)
             printf("%i\n", *args[0]);
     }
 }
+/* ## Lexer ## */
+#define MAX_ARGS   2
+#define MAX_TOKENS 4
 
 typedef struct owl_lexer_ctx
 {
@@ -340,6 +345,8 @@ owl_lexer_free(owl_lexer_ctx_t* l);
 
 void
 owl_lex(owl_lexer_ctx_t* lexer, char* src, owl_table_ctx_t* defines);
+
+/* ## Parser ## */
 
 int
 owl_parse_labels(owl_ctx_t* vm, const char*** tokens);
