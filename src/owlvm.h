@@ -324,4 +324,31 @@ owl_step(owl_ctx_t* vm, int* instruction_index)
     }
 }
 
+typedef struct owl_lexer_ctx
+{
+    char**  source_lines;
+    char*** tokens;
+} owl_lexer_ctx_t;
+
+owl_lexer_ctx_t*
+lexer_make(void);
+
+void
+owl_lexer_free(owl_lexer_ctx_t* l);
+
+void
+owl_lex(owl_lexer_ctx_t* lexer, char* src, owl_table_ctx_t* defines);
+
+int
+owl_parse_labels(owl_ctx_t* vm, const char*** tokens);
+
+int
+owl_parse_program(owl_ctx_t* vm, const char*** tokens);
+
+int*
+owl_add_value(owl_ctx_t* vm, const int val);
+
+int
+owl_parse_value(const char* string);
+
 #endif
