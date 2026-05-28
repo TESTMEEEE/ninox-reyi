@@ -329,6 +329,45 @@ owl_mem_free(owl_mem_t* memory)
     free(memory);
 }
 
+owl_program_t*
+owl_program_make(void)
+{
+    owl_program_t* p = calloc(1, sizeof(owl_program_t));
+    p->label_table   = owl_table_make();
+    p->defines       = owl_table_make();
+    return p;
+}
+
+void
+owl_program_free(owl_program_t* p)
+{
+    owl_table_free(p->label_table);
+    if (p->values) {
+        for (int i = 0; i < p->num_values; i++) {
+            free(p->values[i]);
+        }
+        free(p->values);
+    }
+    if (p->args) {
+        for (int i = 0; i < p->num_values; i++) {
+            free(p->values[i]);
+        }
+        free(p->values);
+    }
+    if (p->args) {
+        for (int i = 0; p->args[i]; i++) {
+            if (p->args[i]) {
+                free(p->args[i]);
+            }
+        }
+        free(p->args);
+    }
+    if (p->instructions) {
+        free(p->instructions);
+    }
+    free(p);
+}
+
 owl_ctx_t*
 owl_vm_make(void)
 {

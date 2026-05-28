@@ -10,9 +10,9 @@ warn_flags := "-Wall -Wextra -Wshadow -Wconversion"
 include_flags := "-Iinclude"
 std_flags := "-std=c99"
 
-outfile := "tyto.test"
+outfile := "owlvm"
 
-source_files := "."
+source_files := "./src"
 
 build:
 	gcc \
@@ -20,10 +20,6 @@ build:
 		{{std_flags}} \
 		{{asan_flags}} \
 		{{warn_flags}} \
-		tyto.h test.c \
+		$(find {{source_files}} -type f -name "*.c") \
 		-o {{outfile}}
-
-alias t := test
-test:
-	just build && ./tyto.test 
 
