@@ -1,0 +1,7 @@
+# Exports a print function
+print_eax:
+	push ebp
+	mov ebp, esp
+	prn eax
+	pop ebp
+	ret

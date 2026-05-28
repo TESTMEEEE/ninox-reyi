@@ -1,0 +1,9 @@
+# Test includes
+%include print_eax_module.vm
+
+start:
+	mov eax, 42
+	call print_eax
+	mov eax, 69
+	call print_eax
+

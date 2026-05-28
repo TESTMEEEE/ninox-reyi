@@ -18,7 +18,6 @@ build:
 	gcc \
 		{{include_flags}} \
 		{{std_flags}} \
-		{{asan_flags}} \
 		{{warn_flags}} \
 		$(find {{source_files}} -type f -name "*.c") \
 		-o {{outfile}}
