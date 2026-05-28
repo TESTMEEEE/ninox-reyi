@@ -77,6 +77,9 @@ owl_table_free(owl_table_ctx_t* tbl)
     free(tbl);
 }
 
+/*
+ * Simple Hash for string [k]
+ **/
 static inline unsigned int
 table_hash(const char* k, const unsigned int size)
 {
@@ -87,6 +90,9 @@ table_hash(const char* k, const unsigned int size)
     return hash % size;
 }
 
+/*
+ * Rehash the table when adding a new node.
+ **/
 static void
 table_rehash(owl_table_ctx_t* original, unsigned int size)
 {
@@ -121,6 +127,9 @@ table_rehash(owl_table_ctx_t* original, unsigned int size)
     free(new);
 }
 
+/*
+ * Add a key to the table, returning the new head node.
+ **/
 static owl_table_node_t*
 table_add_core(owl_table_ctx_t* tbl, const char* k)
 {
@@ -177,6 +186,9 @@ owl_table_addref(
     return 0;
 }
 
+/*
+ * Find and return the nodes.
+ **/
 static owl_table_node_t*
 table_find_core(owl_table_ctx_t* tbl, const char* key)
 {
@@ -208,45 +220,65 @@ owl_table_findref(owl_table_ctx_t* tbl, const char* key)
     return node->data;
 }
 
+/*
+ * Process include directive "%include otherfile.vm"
+ * 0 -> Ok nothing done.
+ * -1 -> Err
+ *  1 -> Success
+ **/
 static int
 process_includes(char** src, int* src_len, owl_table_ctx_t* defines)
 {
     char* directive_delimiter = strstr(*src, TOKEN_INCLUDE);
     if (!directive_delimiter)
         return 0;
+    /* Process include up to the next line */
     char* begin = directive_delimiter;
     char* end   = strchr(begin, '\n');
     if (!end || !begin)
         return 0;
+    /* allocate space for the include string */
     int   line_len = end - begin;
     char* temp_str = calloc(line_len + 1, sizeof(char));
     memcpy(temp_str, begin, line_len);
+    /* Read filename up to space ' ' */
     char* filename = (strchr(temp_str, ' ') + 1);
-    FILE* f        = owl_fopen(filename, ".vm", "r");
+    /* Try to open file */
+    FILE* f = owl_fopen(filename, ".vm", "r");
     if (!f) {
         printf("Unable to open file \"%s\"\n", filename);
         free(temp_str);
         return -1;
     }
+    /* now that we have the file in [f], drop filename */
     free(temp_str);
+    /* Allocate space for file contents */
     size_t addition_length = owl_fsize(f);
     char*  addition_string = calloc(addition_length, sizeof(char));
+    /* Copy over the file string to [addition_string] */
     owl_fcopy(addition_string, addition_length, f);
     fclose(f);
+    /* Find original file block length and included one. */
     size_t first_block_length  = (begin - *src);
     size_t second_block_length = ((*src + *src_len) - end);
+    /* Calculate size for the new source */
     size_t new_source_length =
         (first_block_length + addition_length + second_block_length);
     char* new_source = (char*)calloc(sizeof(char), new_source_length);
+    /* copy the first block, addition, and end + 1 for '\0' to new_source */
     strncpy(new_source, (*src), first_block_length);
     strcat(new_source, addition_string);
     strcat(new_source, end + 1);
     free(*src);
     *src     = new_source;
     *src_len = strlen(*src);
+    /* 1 for success */
     return 1;
 }
 
+/*
+ * Read defines like "%define ONE 1"
+ **/
 static int
 process_defines(char** src, int* src_len, owl_table_ctx_t* defines)
 {
@@ -262,11 +294,15 @@ process_defines(char** src, int* src_len, owl_table_ctx_t* defines)
         printf("Define missing arguments.\n");
         return -1;
     }
+    /* after parsing %define, get space for [k v] */
     int  length = (end - (begin + offset));
     char temp_str[length + 1];
+    /* zero out temp_str */
     memset(temp_str, 0, length + 1);
     memcpy(temp_str, begin + offset, length);
+    /* key_str at begin + offset */
     char* key_str = temp_str;
+    /* find val_str after key ' ' */
     char* val_str = strchr(temp_str, ' ');
     if (val_str) {
         *val_str = 0;
@@ -276,12 +312,14 @@ process_defines(char** src, int* src_len, owl_table_ctx_t* defines)
         printf("Define missing arguments.\n");
         return -1;
     }
+    /* Add [key_str] and [value_str] to defines table */
     if (owl_table_find(defines, key_str) < 0) {
         owl_table_addref(defines, key_str, val_str, strlen(val_str) + 1);
     } else {
         printf("Multiple definitions for %s.\n", key_str);
         return -1;
     }
+    /* Calculate the new source length */
     size_t new_source_length   = *src_len - (end - begin);
     size_t first_block_length  = begin - *src;
     size_t second_block_length = (*src + *src_len) - end;
@@ -289,9 +327,14 @@ process_defines(char** src, int* src_len, owl_table_ctx_t* defines)
     memmove(&(*src)[first_block_length], end, second_block_length);
     *src     = realloc(*src, sizeof(char) * new_source_length);
     *src_len = new_source_length;
+    /* 1 for success */
     return 1;
 }
 
+/*
+ * A Compile time step processes 1 expansion of includes and defines
+ * If no defines or inclues ret = 0 causing our [owl_comptime] loop to break.
+ **/
 static int
 comptime_step(char** src, int* src_len, owl_table_ctx_t* defines)
 {

@@ -7,6 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Open and return the file handle with [filename].[extension]
+ **/
 FILE*
 owl_fopen(const char* filename, const char* extension, const char* mode);
 
@@ -41,15 +44,29 @@ typedef struct owl_table_ctx
     struct owl_table_node** nodes;
 } owl_table_ctx_t;
 
+/*
+ * Initialize the table.
+ **/
 owl_table_ctx_t*
 owl_table_make(void);
 
+/*
+ * Free the table.
+ **/
 void
 owl_table_free(owl_table_ctx_t* tbl);
 
+/*
+ * Update [tbl] with [key] : [value]
+ * Used to track "labels" and jump in source file.
+ **/
 int
 owl_table_add(owl_table_ctx_t* tbl, const char* key, int value);
 
+/*
+ * Add a new reference data to the table.
+ * Used to replace %define macros.
+ **/
 int
 owl_table_addref(
     owl_table_ctx_t* tbl,
@@ -57,12 +74,21 @@ owl_table_addref(
     const void*      data,
     int              len);
 
+/*
+ * Predicate on node found with [key]
+ **/
 int
 owl_table_find(owl_table_ctx_t* tbl, const char* key);
 
+/*
+ * Find and return string in tbl, returns NULL if not found.
+ **/
 char*
 owl_table_findref(owl_table_ctx_t* tbl, const char* key);
 
+/*
+ * Step through our %define and %include directives until fully expanded.
+ **/
 int
 owl_comptime(char** src, int* src_len, owl_table_ctx_t* defines);
 
@@ -94,9 +120,15 @@ typedef struct owl_mem
     union owl_reg_u* registers;
 } owl_mem_t;
 
+/*
+ * Return Initialized memory with registers [NUM_REGISTERS] and space
+ **/
 owl_mem_t*
 owl_memory_make(size_t size);
 
+/*
+ * Free [owl_mem_t*]
+ **/
 void
 owl_mem_free(owl_mem_t* memory);
 
@@ -123,7 +155,7 @@ owl_stack_push(owl_mem_t* memory, int* item)
 }
 
 /*
- * Pop the stack pointer.
+ * Pop the stack pointer setting [dest] with result.
  **/
 static inline void
 owl_stack_pop(owl_mem_t* memory, int* dest)
@@ -144,9 +176,16 @@ typedef struct owl_program
     owl_table_ctx_t* label_table;
 } owl_program_t;
 
+/*
+ * Return a [owl_program_t*] with [label_table] and [defines] initialized.
+ **/
 owl_program_t*
 owl_program_make(void);
 
+/*
+ * Free args, values, instructions, and labels associated with p.
+ * @NOTE[name=drew]{Free defines?}
+ **/
 void
 owl_program_free(owl_program_t* p);
 
@@ -156,8 +195,9 @@ owl_program_free(owl_program_t* p);
 
 #define TOKEN_DEFINE "%define"
 
+/* define opcodes seperatley */
 extern const char* owl_opcode_table[];
-
+/* define registers speratley */
 extern const char* owl_register_table[];
 
 typedef struct owl_ctx
@@ -166,15 +206,27 @@ typedef struct owl_ctx
     owl_mem_t*     memory;
 } owl_ctx_t;
 
+/*
+ * Initialize our memory [MIN_MEMORY_SIZE], program, and stack.
+ **/
 owl_ctx_t*
 owl_vm_make(void);
 
+/*
+ * Free vm memory and program
+ **/
 void
 owl_vm_free(owl_ctx_t* vm);
 
+/*
+ * Run comptime then lex, parse program.
+ **/
 int
 owl_vm_evaluate(owl_ctx_t* vm, char* file_name);
 
+/*
+ * run [owl_step] on parsed program.
+ **/
 void
 owl_vm_run(owl_ctx_t* vm);
 
@@ -216,7 +268,7 @@ enum
 };
 
 /*
- * VM STEP
+ * Preform one step of the virtual machine.
  **/
 static inline void
 owl_step(owl_ctx_t* vm, int* instruction_index)
@@ -328,6 +380,7 @@ owl_step(owl_ctx_t* vm, int* instruction_index)
     }
 }
 /* ## Lexer ## */
+
 #define MAX_ARGS   2
 #define MAX_TOKENS 4
 
@@ -337,26 +390,50 @@ typedef struct owl_lexer_ctx
     char*** tokens;
 } owl_lexer_ctx_t;
 
+/*
+ * Initialize the lexer.
+ **/
 owl_lexer_ctx_t*
 lexer_make(void);
 
+/*
+ * Free the lexer.
+ **/
 void
 owl_lexer_free(owl_lexer_ctx_t* l);
 
+/*
+ * Read into the lexer
+ **/
 void
 owl_lex(owl_lexer_ctx_t* lexer, char* src, owl_table_ctx_t* defines);
 
 /* ## Parser ## */
 
+/*
+ * parse labels and add them to table.
+ * special label "start" gets set to vm->program->start.
+ **/
 int
 owl_parse_labels(owl_ctx_t* vm, const char*** tokens);
 
+/*
+ * Parse instructions and args.
+ * The final instruction will be set to [-0x1] to indicate finished.
+ * -1 Indicates error
+ **/
 int
 owl_parse_program(owl_ctx_t* vm, const char*** tokens);
 
+/*
+ * append values to vm.
+ **/
 int*
 owl_add_value(owl_ctx_t* vm, const int val);
 
+/*
+ * Parse string into integer value.
+ **/
 int
 owl_parse_value(const char* string);
 
