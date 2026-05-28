@@ -1,6 +1,7 @@
 #include "owlvm.h"
 
 #include <stddef.h>
+#include <stdint.h>
 
 FILE*
 owl_fopen(const char* filename, const char* extension, const char* mode)
@@ -794,4 +795,133 @@ owl_parse_value(const char* string)
         }
     }
     return strtoul(string, NULL, base);
+}
+
+/*
+ * Task Lifecycle
+ * Each task gets a slice of the main memory space for its stack.
+ * Upper portions of memory space get divided into [TASK_STACK_SIZE] regions
+ * so that tasks never collide with each other.
+ * */
+
+#define TASK_STACK_SIZE (512 * 1024) /* 512 KB per task */
+
+#define MAX_TASKS 64
+
+static int*
+owl_task_stack_base(owl_ctx_t* vm, int task_id)
+{
+    int32_t* mem   = (int32_t*)vm->memory->memory_space;
+    int      total = vm->memory->memory_space_size / sizeof(int32_t);
+    /* Stack for task N lives at the top of memory minus N * TASK_STACK_SIZE */
+    int offset = total - (task_id + 1);
+    return mem + offset;
+}
+
+owl_task_t*
+owl_task_make(owl_ctx_t* vm, int start_index)
+{
+    owl_task_t* t = calloc(1, sizeof(owl_task_t));
+    if (!t)
+        return NULL;
+    t->id                = vm->next_task_id++;
+    t->alive             = TASK_RUNNABLE;
+    t->instruction_index = start_index;
+    t->next              = NULL;
+    t->waiting_on        = -1;
+
+    /* Give the task its own stack region */
+    t->stack_base = owl_task_stack_base(vm, t->id);
+    t->stack_size = TASK_STACK_SIZE / sizeof(int32_t);
+    /* Copy current register state so spawn inherits caller context */
+    for (int i = 0; i < NUM_REGISTERS; i++) {
+        t->registers[i] = vm->memory->registers[i].i32;
+    }
+    /* Point ESP/EBP (0x6/0x7) to the top of this task's stack region */
+    t->registers[0x6] = (int)(intptr_t)(t->stack_base + t->stack_size);
+    t->registers[0x7] = t->registers[0x6];
+    return t;
+}
+
+void
+owl_task_free(owl_task_t* t)
+{
+    free(t);
+}
+
+void
+owl_task_enqueue(owl_ctx_t* vm, owl_task_t* t)
+{
+    t->next = NULL;
+    if (!vm->task_queue) {
+        vm->task_queue = t;
+        return;
+    }
+    owl_task_t* curr = vm->task_queue;
+    while (curr->next)
+        curr = curr->next;
+    curr->next = t;
+}
+
+owl_task_t*
+owl_task_next(owl_ctx_t* vm)
+{
+    if (!vm->task_queue)
+        return NULL;
+    /* Rotate: move head to tail, try the new head */
+    int spun = 0;
+    int len  = 0;
+    /* Count queue length for deadlock detection */
+    owl_task_t* c = vm->task_queue;
+    while (c) {
+        len++;
+        c = c->next;
+    }
+    while (spun < len) {
+        /* Rotate head to tail */
+        owl_task_t* head = vm->task_queue;
+        vm->task_queue   = head->next;
+        head->next       = NULL;
+        owl_task_enqueue(vm, head);
+        if (vm->task_queue->alive == TASK_RUNNABLE) {
+            return vm->task_queue;
+        }
+        spun++;
+    }
+    return NULL;
+}
+
+owl_task_t*
+owl_task_find(owl_ctx_t* vm, int id)
+{
+    owl_task_t* t = vm->task_queue;
+    while (t) {
+        if (t->id == id)
+            return t;
+        t = t->next;
+    }
+    return NULL;
+}
+
+void
+owl_task_save(owl_ctx_t* vm, int instruction_index)
+{
+    owl_task_t* t = vm->current_task;
+    if (!t)
+        return;
+    t->instruction_index = instruction_index;
+    for (int i = 0; i < NUM_REGISTERS; i++) {
+        t->registers[i] = vm->memory->registers[i].i32;
+    }
+}
+
+void
+owl_task_restore(owl_ctx_t* vm)
+{
+    owl_task_t* t = vm->current_task;
+    if (!t)
+        return;
+    for (int i = 0; i < NUM_REGISTERS; i++) {
+        vm->memory->registers[i].i32 = t->registers[i];
+    }
 }

@@ -200,11 +200,34 @@ extern const char* owl_opcode_table[];
 /* define registers speratley */
 extern const char* owl_register_table[];
 
+typedef struct owl_task
+{
+    int              registers[NUM_REGISTERS];  // Saves snapshot of registers.
+    int              instruction_index;
+    int*             stack_base;  // each task gets own stack region.
+    int              stack_size;
+    int              id;
+    int              alive;       // 0 = done, 1 = runnable, 2 = waiting.
+    int              waiting_on;  // address being waited on.
+    struct owl_task* next;        // linked list.
+} owl_task_t;
+
 typedef struct owl_ctx
 {
     owl_program_t* program;
     owl_mem_t*     memory;
+    owl_task_t*    current_task;
+    owl_task_t*    task_queue;
+    int            next_task_id;
 } owl_ctx_t;
+
+typedef enum
+{
+    OWL_STEP_OK    = 0,
+    OWL_STEP_YIELD = 1,
+    OWL_STEP_DONE  = 2,
+    OWL_STEP_ERR   = -1,
+} owl_step_result_t;
 
 /*
  * Initialize our memory [MIN_MEMORY_SIZE], program, and stack.
@@ -233,44 +256,90 @@ owl_vm_run(owl_ctx_t* vm);
 /* Opcodes */
 enum
 {
-    OP_NOP   = 0x0,
-    OP_INT   = 0x1,
-    OP_MOV   = 0x2,
-    OP_PUSH  = 0x3,
-    OP_POP   = 0x4,
-    OP_PUSHF = 0x5,
-    OP_POPF  = 0x6,
-    OP_INC   = 0x7,
-    OP_DEC   = 0x8,
-    OP_ADD   = 0x9,
-    OP_SUB   = 0xA,
-    OP_MUL   = 0xB,
-    OP_DIV   = 0xC,
-    OP_MOD   = 0xD,
-    OP_REM   = 0xE,
-    OP_NOT   = 0xF,
-    OP_XOR   = 0x10,
-    OP_OR    = 0x11,
-    OP_AND   = 0x12,
-    OP_SHL   = 0x13,
-    OP_SHR   = 0x14,
-    OP_CMP   = 0x15,
-    OP_JMP   = 0x16,
-    OP_CALL  = 0x17,
-    OP_RET   = 0x18,
-    OP_JE    = 0x19,
-    OP_JNE   = 0x1A,
-    OP_JG    = 0x1B,
-    OP_JGE   = 0x1C,
-    OP_JL    = 0x1D,
-    OP_JLE   = 0x1E,
-    OP_PRN   = 0x1F,
+    OP_NOP    = 0x0,
+    OP_INT    = 0x1,
+    OP_MOV    = 0x2,
+    OP_PUSH   = 0x3,
+    OP_POP    = 0x4,
+    OP_PUSHF  = 0x5,
+    OP_POPF   = 0x6,
+    OP_INC    = 0x7,
+    OP_DEC    = 0x8,
+    OP_ADD    = 0x9,
+    OP_SUB    = 0xA,
+    OP_MUL    = 0xB,
+    OP_DIV    = 0xC,
+    OP_MOD    = 0xD,
+    OP_REM    = 0xE,
+    OP_NOT    = 0xF,
+    OP_XOR    = 0x10,
+    OP_OR     = 0x11,
+    OP_AND    = 0x12,
+    OP_SHL    = 0x13,
+    OP_SHR    = 0x14,
+    OP_CMP    = 0x15,
+    OP_JMP    = 0x16,
+    OP_CALL   = 0x17,
+    OP_RET    = 0x18,
+    OP_JE     = 0x19,
+    OP_JNE    = 0x1A,
+    OP_JG     = 0x1B,
+    OP_JGE    = 0x1C,
+    OP_JL     = 0x1D,
+    OP_JLE    = 0x1E,
+    OP_PRN    = 0x1F,
+    OP_EXT    = 0x20,
+    OP_YIELD  = 0x21,
+    OP_SPAWN  = 0x22,
+    OP_SEND   = 0x23,
+    OP_RECV   = 0x24,
+    OP_JOIN   = 0x25,
+    OP_WAIT   = 0x26,
+    OP_SIGNAL = 0x27,
 };
+
+#define TASK_DONE     0
+#define TASK_RUNNABLE 1
+#define TASK_WAITING  2
+#define TASK_SENDING  3 /* blocked */
+
+/* ## Task-Concurrency ## */
+
+owl_task_t*
+owl_task_make(owl_ctx_t* vm, int start_index);
+
+void
+owl_task_free(owl_task_t* t);
+
+void
+owl_task_enqueue(owl_ctx_t* vm, owl_task_t* t);
+
+/*
+ * Advance to the next RUNNABLE task, cycling the queue.
+ * Returns NULL if nothing is runnable (deadlock or all done).
+ */
+owl_task_t*
+owl_task_next(owl_ctx_t* vm); /* round-robin, skips waiting */
+
+owl_task_t*
+owl_task_find(owl_ctx_t* vm, int id);
+
+/*
+ * Snapshot live registers + instruction index into current_task.
+ */
+void
+owl_task_save(owl_ctx_t* vm, int instruction_index);
+
+/*
+ * Restore current_task's registers into the live memory context.
+ */
+void
+owl_task_restore(owl_ctx_t* vm);
 
 /*
  * Preform one step of the virtual machine.
  **/
-static inline void
+static inline owl_step_result_t
 owl_step(owl_ctx_t* vm, int* instruction_index)
 {
     int** args = vm->program->args[*instruction_index];
@@ -377,6 +446,68 @@ owl_step(owl_ctx_t* vm, int* instruction_index)
             break;
         case OP_PRN:
             printf("%i\n", *args[0]);
+        case OP_EXT:
+            return OWL_STEP_DONE;
+        case OP_YIELD:
+            return OWL_STEP_YIELD;
+        case OP_SPAWN: {
+            /*
+             * args[0] = label address (instruction index) to start at.
+             * The new task id is returned in EAX (register 0) of the parent.
+             */
+            owl_task_t* child = owl_task_make(vm, *args[0]);
+            if (!child)
+                return OWL_STEP_ERR;
+            owl_task_enqueue(vm, child);
+            vm->memory->registers[0].i32 = child->id;
+            return OWL_STEP_OK;
+        }
+        case OP_SEND: {
+            /*
+             * send task_id, value
+             * args[0] = target task id, args[1] = value to deliver.
+             * Sender blocks (TASK_SENDING) until receiver calls recv.
+             */
+            owl_task_t* target = owl_task_find(vm, *args[0]);
+            if (!target || target->alive == TASK_DONE) {
+                return OWL_STEP_ERR;
+            }
+            /* I have mail from */
+            target->waiting_on = vm->current_task->id;
+            /* if recv is already blocked, wake it and hand off. */
+            if (target->alive == TASK_WAITING) {
+                /* deliver to EAX */
+                target->registers[0]    = *args[1];
+                target->alive           = TASK_RUNNABLE;
+                vm->current_task->alive = TASK_RUNNABLE;
+            } else {
+                /* Recv not ready yet; park value and block */
+                vm->current_task->alive = TASK_SENDING;
+                /* park in EAX */
+                vm->current_task->registers[0] = *args[1];
+            }
+            return OWL_STEP_YIELD;
+        }
+        case OP_RECV: {
+            /*
+             * recv  (no args — result always lands in EAX)
+             * Block until a sender delivers a value to this task.
+             */
+            owl_task_t* sender =
+                owl_task_find(vm, vm->current_task->waiting_on);
+            if (sender && sender->alive == TASK_SENDING) {
+                /* Value is already parked in sender's EAX */
+                vm->memory->registers[0].i32 = sender->registers[0];
+                sender->alive                = TASK_RUNNABLE;
+                vm->current_task->waiting_on = -1;
+            } else {
+                /* no sender yet - block and wait*/
+                vm->current_task->alive = TASK_WAITING;
+                return OWL_STEP_YIELD;
+            }
+            return OWL_STEP_OK;
+        }
+            // OP JOIN
     }
 }
 /* ## Lexer ## */
