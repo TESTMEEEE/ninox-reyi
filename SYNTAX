@@ -1,24 +1,6 @@
 This virtual machine loosely follows traditional Intel x86 assembly syntax.
 
 //////////////////////////////////////////////////
-// Table of Contents /////////////////////////////
-//////////////////////////////////////////////////
-0. VALUES
-1. REGISTERS
-2. MEMORY
-3. LABELS
-4. PREPROCESSOR
-5. INSTRUCTION LISTING
-	I.    Memory
-	II.   Stack
-	III.  Calling Conventions
-	IV.   Arithmetic Operators
-	V.    Binary Operators
-	VI.   Comparison
-	VII.  Control Flow Manipulation
-	VIII. Input / Output
-
-//////////////////////////////////////////////////
 // 0. VALUES /////////////////////////////////////
 //////////////////////////////////////////////////
 
@@ -101,12 +83,12 @@ OWLVM's preprocessor works similarly to many C compilers and uses the prefix "%"
 // 5. INSTRUCTION LISTING ////////////////////////
 //////////////////////////////////////////////////
 
-	// I. Memory //
+	// Memory //
 
 		[mov arg0, arg1]
 		Moves value specified from arg1 to arg0
 
-	// II. Stack //
+	// Stack //
 
 		[push arg]
 		Pushes arg onto the stack
@@ -120,7 +102,7 @@ OWLVM's preprocessor works similarly to many C compilers and uses the prefix "%"
 		[popf arg]
 		Pops the flag register to arg
 
-	// III. Calling Conventions //
+	// Calling Conventions //
 
 		[call address]
 		Push the current address to the stack and jump to the subroutine specified
@@ -128,7 +110,7 @@ OWLVM's preprocessor works similarly to many C compilers and uses the prefix "%"
 		[ret]
 		Pop the previous address from the stack to the instruction pointer to return control to the caller
 
-	// IV. Arithmetic Operators //
+	// Arithmetic Operators //
 
 		[inc arg]
 		Increments arg
@@ -155,7 +137,7 @@ OWLVM's preprocessor works similarly to many C compilers and uses the prefix "%"
 		[rem arg]
 		Retrieves the value stored in the remainder register, storing it in arg
 
-	// V. Binary Operators //
+	// Binary Operators //
 
 		[not arg]
 		Calculates the binary NOT of arg, storing it in arg
@@ -175,12 +157,12 @@ OWLVM's preprocessor works similarly to many C compilers and uses the prefix "%"
 		[shr arg0, arg1]
 		Shifts arg0 right by arg1 places
 
-	// VI. Comparison //
+	// Comparison //
 
 		[cmp arg0, arg1]
 		Compares arg0 and arg1, storing the result in the FLAGS register
 
-	// VII. Control Flow Manipulation //
+	// Control Flow Manipulation //
 
 		[jmp address]
 		Jumps to an address or label
@@ -203,13 +185,15 @@ OWLVM's preprocessor works similarly to many C compilers and uses the prefix "%"
 		[jle address]
 		Jump if lesser or equal
 
-	// VIII. Input / Output //
+	// Input / Output //
 
 		[prn arg]
 		Print an integer
 	
 		[ext code]
 		Exit code.
+
+	// Concurrency //
 
 		[yield]
 		Yield Stack.
