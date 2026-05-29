@@ -507,8 +507,43 @@ owl_step(owl_ctx_t* vm, int* instruction_index)
             }
             return OWL_STEP_OK;
         }
-            // OP JOIN
+        case OP_JOIN: {
+            /*
+             * join task_id
+             * Block until target task is TASK_DONE.
+             */
+            owl_task_t* target = owl_task_find(vm, *args[0]);
+            if (!target || target->alive == TASK_DONE) {
+                return OWL_STEP_OK; /* already finished, fall through */
+            }
+            vm->current_task->alive      = TASK_WAITING;
+            vm->current_task->waiting_on = *args[0];
+            return OWL_STEP_YIELD;
+        }
+        case OP_WAIT: {
+            /* wait addr -- suspend until signal addr */
+            vm->current_task->alive      = TASK_WAITING;
+            vm->current_task->waiting_on = *args[0];
+            return OWL_STEP_YIELD;
+        }
+        case OP_SIGNAL: {
+            /*
+             * signal addr — wake one task waiting on addr.
+             * Deliberately wakes only one to avoid thundering herd.
+             */
+            owl_task_t* t = vm->task_queue;
+            while (t) {
+                if (t->alive == TASK_WAITING && t->waiting_on == *args[0]) {
+                    t->alive      = TASK_RUNNABLE;
+                    t->waiting_on = -1;
+                    break;
+                }
+                t = t->next;
+            }
+            return OWL_STEP_OK;
+        }
     }
+    return OWL_STEP_OK;
 }
 /* ## Lexer ## */
 

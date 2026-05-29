@@ -1,0 +1,29 @@
+# Producer / Consumer test
+# Producer -> Generates 1..5, Consumer prints them.
+
+%define COUNT 5
+
+start:
+	spawn consumer # task id in EAX
+	mov ebx, eax # save consumers task id in EBX
+	mov ecx, 1 # counter = 1
+producerLoop:
+	cmp ecx, COUNT
+	jg producerDone
+	send ebx, ecx # send current count to consumer
+	inc ecx
+	jmp producerLoop
+producerDone:
+	mov ecx, 0
+	send ebx, ecx # send sentinel 0 to signal consumer to stop.
+	join ebx # wait for consumer to finish
+	ext 0
+consumer:
+	recv # Result lands in EAX
+	cmp eax, 0
+	je consumerDone
+	
+	prn eax 
+	jmp consumer
+consumerDone:
+	ext 0

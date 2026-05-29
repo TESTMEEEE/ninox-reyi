@@ -469,12 +469,71 @@ owl_vm_evaluate(owl_ctx_t* vm, char* file_name)
 void
 owl_vm_run(owl_ctx_t* vm)
 {
-    int* instruction_idx = &vm->memory->registers[0x8].i32;
-    *instruction_idx     = vm->program->start;
-    for (; vm->program->instructions[*instruction_idx] != -0x1;
-         ++(*instruction_idx)) {
-        owl_step(vm, instruction_idx);
+    /* Bootstrap: wrap the main program in task 0 */
+    owl_task_t* main_task = owl_task_make(vm, vm->program->start);
+    vm->next_task_id      = 1; /* reset after main task consumes 0 */
+    main_task->id         = 0;
+    owl_task_enqueue(vm, main_task);
+    vm->current_task = main_task;
+    owl_task_restore(vm);
+    int instruction_index = vm->program->start;
+    for (;;) {
+        owl_step_result_t result = owl_step(vm, &instruction_index);
+        if (result == OWL_STEP_DONE || result == OWL_STEP_ERR) {
+            vm->current_task->alive = TASK_DONE;
+            /* wake any task that was joined on this one. */
+            owl_task_t* t = vm->task_queue;
+            while (t) {
+                if (t->alive == TASK_WAITING &&
+                    t->waiting_on == vm->current_task->id) {
+                    t->alive      = TASK_RUNNABLE;
+                    t->waiting_on = -1;
+                }
+                t = t->next;
+            }
+        }
+        /* Advance instruction unless we're switching away. */
+        if (result == OWL_STEP_OK) {
+            instruction_index++;
+        }
+        /* check for program termination sentinel */
+        if (vm->program->instructions[instruction_index] == -1 &&
+            result != OWL_STEP_YIELD) {
+            vm->current_task->alive = TASK_DONE;
+        }
+        /* Context switch if needed */
+        if (result == OWL_STEP_YIELD || result == OWL_STEP_DONE ||
+            vm->current_task->alive != TASK_RUNNABLE) {
+            owl_task_save(vm, instruction_index);
+            owl_task_t* next = owl_task_next(vm);
+            if (!next)
+                break; /* all done or deadlock */
+            vm->current_task = next;
+            owl_task_restore(vm);
+            instruction_index = next->instruction_index;
+        }
+        /* All tasks finished when queue is empty or all DONE */
+        owl_task_t* t   = vm->task_queue;
+        int         any = 0;
+        while (t) {
+            if (t->alive != TASK_DONE) {
+                any = 1;
+                break;
+            }
+            t = t->next;
+        }
+        if (!any)
+            break;
     }
+    /* Cleanup */
+    owl_task_t* t = vm->task_queue;
+    while (t) {
+        owl_task_t* next = t->next;
+        owl_task_free(t);
+        t = next;
+    }
+    vm->task_queue   = NULL;
+    vm->current_task = NULL;
 }
 
 void
