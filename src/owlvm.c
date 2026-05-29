@@ -393,12 +393,6 @@ owl_program_free(owl_program_t* p)
         free(p->values);
     }
     if (p->args) {
-        for (int i = 0; i < p->num_values; i++) {
-            free(p->values[i]);
-        }
-        free(p->values);
-    }
-    if (p->args) {
         for (int i = 0; p->args[i]; i++) {
             if (p->args[i]) {
                 free(p->args[i]);
@@ -615,7 +609,8 @@ const char* owl_opcode_table[] = {
     "nop", "int", "mov", "push", "pop", "pushf", "popf", "inc", "dec",
     "add", "sub", "mul", "div",  "mod", "rem",   "not",  "xor", "or",
     "and", "shl", "shr", "cmp",  "jmp", "call",  "ret",  "je",  "jne",
-    "jg",  "jge", "jl",  "jle",  "prn", 0};
+    "jg",  "jge", "jl",  "jle",  "prn", "ext",  "yield", "spawn",
+    "send", "recv", "join", "wait", "signal", 0};
 
 const char* owl_register_table[] = {
     "eax",

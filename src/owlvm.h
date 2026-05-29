@@ -209,6 +209,7 @@ typedef struct owl_task
     int              id;
     int              alive;       // 0 = done, 1 = runnable, 2 = waiting.
     int              waiting_on;  // address being waited on.
+    int              parked_value; // value parked by SEND (survives task_save)
     struct owl_task* next;        // linked list.
 } owl_task_t;
 
@@ -446,6 +447,7 @@ owl_step(owl_ctx_t* vm, int* instruction_index)
             break;
         case OP_PRN:
             printf("%i\n", *args[0]);
+            break;
         case OP_EXT:
             return OWL_STEP_DONE;
         case OP_YIELD:
@@ -476,16 +478,13 @@ owl_step(owl_ctx_t* vm, int* instruction_index)
             target->waiting_on = vm->current_task->id;
             /* if recv is already blocked, wake it and hand off. */
             if (target->alive == TASK_WAITING) {
-                /* deliver to EAX */
-                target->registers[0]    = *args[1];
-                target->alive           = TASK_RUNNABLE;
-                vm->current_task->alive = TASK_RUNNABLE;
-            } else {
-                /* Recv not ready yet; park value and block */
-                vm->current_task->alive = TASK_SENDING;
-                /* park in EAX */
-                vm->current_task->registers[0] = *args[1];
+                target->registers[0] = *args[1];
+                target->alive        = TASK_RUNNABLE;
             }
+            /* park the value; RECV will wake us */
+            vm->current_task->alive      = TASK_SENDING;
+            vm->current_task->parked_value = *args[1];
+            (*instruction_index)++;
             return OWL_STEP_YIELD;
         }
         case OP_RECV: {
@@ -496,8 +495,8 @@ owl_step(owl_ctx_t* vm, int* instruction_index)
             owl_task_t* sender =
                 owl_task_find(vm, vm->current_task->waiting_on);
             if (sender && sender->alive == TASK_SENDING) {
-                /* Value is already parked in sender's EAX */
-                vm->memory->registers[0].i32 = sender->registers[0];
+                /* Value is parked in sender's parked_value */
+                vm->memory->registers[0].i32 = sender->parked_value;
                 sender->alive                = TASK_RUNNABLE;
                 vm->current_task->waiting_on = -1;
             } else {
