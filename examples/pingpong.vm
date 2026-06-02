@@ -1,0 +1,28 @@
+# Ping pong bounce a counter back and forth.
+%define LIMIT 6
+
+start:
+	spawn pong # eax = pong task id
+	mov ebx, eax
+	mov eax, 0 # starting value
+pingLoop:
+	send ebx, eax # send to pong
+	recv # get it back in eax
+	prn eax
+	cmp eax, LIMIT
+	jge pingDone
+	jmp pingLoop
+pingDone:
+	ext 0
+
+pong:
+	recv # get value from ping
+	cmp eax, LIMIT
+	jge pongDone
+	inc eax
+	mov ebx, 0
+	send ebx, eax
+	jmp pong
+pongDone:
+	ext 0
+
