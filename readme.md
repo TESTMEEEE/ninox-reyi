@@ -181,29 +181,60 @@ Exit with a code.
 
 ## Concurrency
 
-Each task gets a slice of the main memory as stack space.
-Upper positions of the memory space get divided into regions.
+Execution is cooperative and single-threaded. The program starts as **task 0**;
+`spawn` assigns increasing ids (1, 2, ...) to new tasks. Only one task runs at a
+time. The scheduler switches tasks when the current task yields, blocks, or
+finishes, picking the next runnable task in round-robin order. All registers
+(including `esp` and `ebp`) are saved and restored per task; main memory,
+`FLAGS`, and the remainder register are shared. Each task is assigned a 512 KB
+stack region in the upper part of memory (see limitations below).
+
+If every task is done or blocked, the VM stops. Finishing a task — via `ext`, an
+error, or running off the end of the instruction list — wakes tasks blocked in
+`join` on it. `ext` does not pass its code to joiners.
 
 `yield`
-Yield Stack.
+Voluntarily give up the turn to the next runnable task.
 
 `spawn label`
-Clones all register states, 
-Points `esp` and `ebp` to the top of the stacks region.
+Start a new task at `label` and write its id into `eax`. The child inherits the
+caller's registers at the moment of the spawn but gets its own stack pointers;
+the parent's `eax` is then overwritten with the child id.
 
 `send task_id, value`
+Send `value` to `task_id` and block until that task calls `recv`. If the target
+is already blocked in `recv`, `eax` is set immediately; otherwise the value
+stays with the sender until the target's next `recv`. Sending to an unknown or
+finished task terminates the sender.
 
 `recv`
-No args, result always lands in `eax` 
+No args. Block until a sender targets this task. The value lands in `eax` and
+the sender is unblocked. Only one pending sender is tracked, so a second `send`
+to the same task replaces the first.
 
 `join task_id`
-Block until target task is `TASK_DONE`
+Block until `task_id` finishes. An unknown or already finished task returns
+immediately. No exit status is returned.
 
-`wait address`
-Suspend until signal address.
+`wait addr`
+Block until `signal addr` is executed. `addr` is an integer tag, not a memory
+address; signals issued while nobody is waiting are lost.
 
 `signal addr`
-Wake one task waiting on address.
+Wake one task waiting on the same `addr`. Other waiters remain blocked.
+
+### Current limitations
+
+These are behaviors of the current implementation, not intended semantics:
+
+- `yield` resumes at the same instruction and yields again, so a task never
+  advances past it. `wait` likewise re-executes after being signaled and blocks
+  again. Use `send`/`recv` for synchronization for now.
+- A `send` whose receiver never calls `recv` leaves the sender blocked forever;
+  the same happens if the receiver finishes first.
+- Per-task stack pointers are computed outside the allocated memory and stored
+  as 32-bit ints, so `push`/`pop` inside a spawned task is unreliable (it can
+  segfault).
 
 
 

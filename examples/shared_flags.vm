@@ -1,0 +1,35 @@
+# FLAGS are shared between tasks (they are not saved/restored on a switch)
+#
+# SEND/RECV handshakes force this exact order:
+#   1. main does `cmp 1, 2` -> FLAGS says "not equal"
+#   2. worker does `cmp 1, 1` -> FLAGS says "equal"
+#   3. main resumes and tests the flag with JE
+#
+# JE observes the worker's FLAGS, not the ones main last set, so the
+# "equal" branch is taken.
+#
+# Expected output: 8   (7 would mean each task had its own FLAGS)
+
+start:
+	spawn worker
+	mov ebx, eax
+	recv              # wait for the worker's "ready" message
+	cmp 1, 2          # main sets FLAGS = not equal
+	send ebx, 5       # hand control to the worker
+	recv              # wait for the worker's reply
+	je equal
+	prn 7
+	jmp done
+equal:
+	prn 8
+done:
+	join ebx
+	ext 0
+
+worker:
+	mov ebx, 0        # EBX = 0 is the main task's id
+	send ebx, 1       # "ready": unblocks main's first RECV
+	recv              # wait for main's 5
+	cmp 1, 1          # worker sets FLAGS = equal
+	send ebx, 9       # reply: unblocks main's second RECV
+	ext 0

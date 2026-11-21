@@ -1,0 +1,25 @@
+# Only one pending sender is tracked per task
+#
+# A task records a single sender id in `waiting_on`, so a second SEND to the
+# same task overwrites the first. Here s1 sends 11 and s2 sends 22 to task 0;
+# task 0 receives only 22. s1 stays blocked in SEND forever, so once task 0
+# blocks on its second RECV there is no runnable task and the VM stops.
+#
+# Expected output: 22
+
+start:
+	spawn s1
+	spawn s2
+	recv              # gets 22 from s2 (s1's value was overwritten)
+	prn eax
+	recv              # blocks: nobody left to send
+	prn eax
+	ext 0
+
+s1:
+	send 0, 11
+	ext 0
+
+s2:
+	send 0, 22
+	ext 0

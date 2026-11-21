@@ -1,0 +1,23 @@
+# Demonstrates the current WAIT/SIGNAL limitation (see readme)
+#
+# RECV is only a handshake here: it guarantees main is blocked in WAIT before
+# the other task runs SIGNAL. SIGNAL does wake main, but WAIT is re-executed
+# on resume and blocks again, so `prn 100` is never reached. When no task is
+# runnable left, the VM stops.
+#
+# Expected output: nothing (the program exits without printing)
+
+start:
+	spawn signaler
+	mov ebx, eax
+	recv              # wait until the signaler is ready
+	wait 1            # block on tag 1
+	prn 100           # never runs
+	join ebx
+	ext 0
+
+signaler:
+	mov ebx, 0        # EBX = 0 is the main task's id
+	send ebx, 1       # handshake: unblocks main's RECV
+	signal 1          # wakes main, but WAIT will block again
+	ext 0

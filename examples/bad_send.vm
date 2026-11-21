@@ -1,0 +1,13 @@
+# Sending to an unknown (or already finished) task is an error
+#
+# SEND returns an error when the target id does not exist. The VM marks the
+# sender DONE on error, so execution stops right after the SEND and `prn 2`
+# is never reached.
+#
+# Expected output: 1
+
+start:
+	prn 1
+	send 99, 5        # no task has id 99
+	prn 2             # never runs
+	ext 0

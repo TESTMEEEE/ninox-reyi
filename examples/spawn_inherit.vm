@@ -1,0 +1,21 @@
+# SPAWN: child task id and inherited registers
+#
+# The parent sets EBX = 42 before spawning, so the child inherits that value
+# (SPAWN copies the caller's registers into the new task). SPAWN writes the
+# new task's id into EAX; the parent copies it to ECX, prints it, and joins.
+#
+# Expected output:
+#   1     (the child's task id)
+#   42    (EBX inherited by the child)
+
+start:
+	mov ebx, 42
+	spawn worker
+	mov ecx, eax
+	prn ecx
+	join ecx
+	ext 0
+
+worker:
+	prn ebx
+	ext 0

@@ -1,0 +1,14 @@
+# Demonstrates the current YIELD limitation (see readme: Current limitations)
+#
+# YIELD saves the same instruction index, so the task re-executes YIELD each
+# time it is scheduled. It never advances to `prn 2`. With a single task the
+# scheduler keeps picking the same runnable task, so this never terminates.
+#
+# Run with a timeout (e.g. `timeout 2 ./owlvm examples/yield_limitation.vm`).
+# Expected output: 1, then it hangs.
+
+start:
+	prn 1
+	yield
+	prn 2             # never runs
+	ext 0
